@@ -23,6 +23,7 @@ MainWindow::MainWindow(QWidget *parent) :
  //   connect(timer, SIGNAL(timeout()), this, SLOT(getNewFrame()));
     actIndex=-1;
     useCamera=false;
+    createMap(&mapData);
 
 
 
@@ -74,6 +75,11 @@ void MainWindow::paintEvent(QPaintEvent *event)
                 int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().y();
                 if(rect.contains(xp,yp))
                     painter.drawEllipse(QPoint(xp, yp),2,2);
+
+                //updatni nasu mapu s datami z ladaru
+
+                    fillMap(copyOfLaserData.Data[k].scanDistance,copyOfLaserData.Data[k].scanAngle);
+
             }
         }
     }
@@ -92,7 +98,11 @@ void MainWindow::processThisRobot()
     odometria();
     updateError();
 
-
+    if(datacounter%300 == 0 && mapingState){
+         //cout<< "zapisujem mapu" <<endl;
+         writeMap(mapData,"map");
+         //cout<< "mapa zapisana" << endl;
+     }
 
     if(datacounter%2 == 0){
         regulator();
@@ -393,6 +403,7 @@ void MainWindow::on_pushButton_10_clicked()
     isStart = true;
     finalTarget = loadTarget();
     newTarget = finalTarget;
+    mapingState = true;
 }
 
 double MainWindow::getAngle(double x1, double y1, double x2, double y2){
@@ -464,7 +475,7 @@ void MainWindow::regulator(){
 
            if(reg.speed > reg.max_trans_speed) reg.speed = reg.max_trans_speed;
 
-           if(isinf(reg.circ)) reg.circ = 100000;
+           if(isinf(reg.circ)) reg.circ = 32000;
 
            std::vector<unsigned char> mess=robot.setArcSpeed((int)reg.speed,(int)reg.circ);
            if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
@@ -492,5 +503,43 @@ void MainWindow::rotateRobotLeft(){
 }
 void MainWindow::rotateRobotRight(){
    on_pushButton_5_clicked(); //right
+}
+
+void MainWindow::createMap(MapType *map){
+    for(int i = 0; i< map->mapsize;i++){
+        for(int j = 0; j<map->mapsize; j++){
+
+            map->map[i][j] = 0;
+        }
+
+    }
+}
+
+void MainWindow::fillMap(double distance, double angle){
+     int xm,ym;
+     double finalAngle;
+     int ofset = mapData.mapsize/2;
+
+    finalAngle = (angle*M_PI/180) + fiAbsolute; //uhol bodu voci svetovemu suradnicovemu systemu
+
+    if((distance <= 1500.0) && (distance != 0.0)){
+        xm = (int)((((x)*1000.0) + (distance*cos(finalAngle)))/40.0);
+        ym = (int)((((y)*1000.0) + (distance*sin(finalAngle)))/40.0);
+        mapData.map[xm+ofset][ym+ofset] = 1;
+    }
+}
+
+void MainWindow::writeMap(MapType map, string name){
+    ofstream file;
+    file.open(name+".txt", ios::trunc);
+    for(int i=0; i<map.mapsize; i++){
+       if(!(i==0)) file<<endl;
+        //file << endl;
+        for(int j=0; j<map.mapsize; j++){
+            file<<map.map[i][j];
+        }
+    }
+    file.close();
+
 }
 

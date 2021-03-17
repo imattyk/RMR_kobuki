@@ -31,6 +31,22 @@ typedef struct{
 }worldPoint;
 
 typedef struct{
+    int x;
+    int y;
+    int value;
+}MapPoint;
+
+typedef struct{
+    int mapsize = 400;
+    int map[400][400];
+    double resolution = 40 ; //  mm
+    MapPoint mstart;
+    MapPoint mfinish;
+    worldPoint wstart;
+    worldPoint wfinish;
+}MapType;
+
+typedef struct{
     double Kc = 140;
     double Ks = 600;// rozdiel je v metroch rychlost chcem v mm >> chyba v metroch >> 100vky mm
     double circ;
@@ -96,6 +112,9 @@ public:
     void navigation();
     void rotateRobotLeft();
     void rotateRobotRight();
+    void createMap(MapType *map);
+    void fillMap(double distance, double angle);
+    void writeMap(MapType map, string name);
 
 private slots:
     void on_pushButton_9_clicked();
@@ -138,7 +157,8 @@ private:
      worldPoint finalTarget;
      double angleError = 0.0;
      Regstruct reg;
-
+     MapType mapData;
+     boolean mapingState = false;
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi);
