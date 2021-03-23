@@ -78,8 +78,9 @@ void MainWindow::paintEvent(QPaintEvent *event)
 
                 //updatni nasu mapu s datami z ladaru
 
+                if(!isRotate){
                     fillMap(copyOfLaserData.Data[k].scanDistance,copyOfLaserData.Data[k].scanAngle);
-
+                }
             }
         }
     }
@@ -163,7 +164,7 @@ void MainWindow::on_pushButton_3_clicked() //back
 void MainWindow::on_pushButton_6_clicked() //left
 {
 
-    std::vector<unsigned char> mess=robot.setRotationSpeed(3.14159/2);
+    std::vector<unsigned char> mess=robot.setRotationSpeed(3.14159/4);
     if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
     {
 
@@ -173,7 +174,7 @@ void MainWindow::on_pushButton_6_clicked() //left
 void MainWindow::on_pushButton_5_clicked()//right
 {
 
-    std::vector<unsigned char> mess=robot.setRotationSpeed(-3.14159/2);
+    std::vector<unsigned char> mess=robot.setRotationSpeed(-3.14159/4);
     if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
     {
 
@@ -435,9 +436,9 @@ void MainWindow::updateError(){
        angleError = (2*M_PI)+angleError;
     }
 
-    qDebug() << "zelana: " + QString::number(newTarget.fi);
-    qDebug() << "error: " + QString::number(angleError);
-    qDebug() << "========================";
+    //qDebug() << "zelana: " + QString::number(newTarget.fi);
+    //qDebug() << "error: " + QString::number(angleError);
+    //qDebug() << "========================";
 }
 
 void MainWindow::regulator(){
@@ -519,8 +520,9 @@ void MainWindow::fillMap(double distance, double angle){
      int xm,ym;
      double finalAngle;
      int ofset = mapData.mapsize/2;
+    qDebug() << "angle: " + QString::number(angle) + "  Distance: " + QString::number(distance);
 
-    finalAngle = (angle*M_PI/180) + fiAbsolute; //uhol bodu voci svetovemu suradnicovemu systemu
+    finalAngle = (-angle*M_PI/180) + fiAbsolute; //uhol bodu voci svetovemu suradnicovemu systemu
 
     if((distance <= 1500.0) && (distance != 0.0)){
         xm = (int)((((x)*1000.0) + (distance*cos(finalAngle)))/40.0);

@@ -51,7 +51,7 @@ typedef struct{
     double Ks = 600;// rozdiel je v metroch rychlost chcem v mm >> chyba v metroch >> 100vky mm
     double circ;
     double speed;
-    const double max_trans_speed = 600;
+    const double max_trans_speed = 300;
 }Regstruct;
 
 namespace Ui {
