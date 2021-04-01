@@ -40,10 +40,6 @@ typedef struct{
     int mapsize = 400;
     int map[400][400];
     double resolution = 40 ; //  mm
-    MapPoint mstart;
-    MapPoint mfinish;
-    worldPoint wstart;
-    worldPoint wfinish;
 }MapType;
 
 typedef struct{
@@ -113,8 +109,8 @@ public:
     void rotateRobotLeft();
     void rotateRobotRight();
     void createMap(MapType *map);
-    void fillMap(double distance, double angle);
-    void writeMap(MapType map, string name);
+    void updateMap(double distance, double angle);
+    void writeMapToTxt(MapType map, string name);
 
 private slots:
     void on_pushButton_9_clicked();
@@ -159,11 +155,12 @@ private:
      Regstruct reg;
      MapType mapData;
      boolean mapingState = false;
+     int counter;
 
 public slots:
-     void setUiValues(double robotX,double robotY,double robotFi);
+     void setUiValues(double robotX,double robotY,double robotFi, int counter);
 signals:
-     void uiValuesChanged(double newrobotX,double newrobotY,double newrobotFi); ///toto nema telo
+     void uiValuesChanged(double newrobotX,double newrobotY,double newrobotFi, int counter); ///toto nema telo
 
 
 };

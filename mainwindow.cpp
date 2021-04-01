@@ -78,19 +78,26 @@ void MainWindow::paintEvent(QPaintEvent *event)
 
                 //updatni nasu mapu s datami z ladaru
 
-                if(!isRotate){
-                    fillMap(copyOfLaserData.Data[k].scanDistance,copyOfLaserData.Data[k].scanAngle);
+                if(!isRotate && counter == 0){
+                    updateMap(copyOfLaserData.Data[k].scanDistance, 360-copyOfLaserData.Data[k].scanAngle);
                 }
             }
         }
     }
 }
 
-void  MainWindow::setUiValues(double robotX,double robotY,double robotFi)
+void  MainWindow::setUiValues(double robotX,double robotY,double robotFi, int counter)
 {
      ui->lineEdit_2->setText(QString::number(robotX));
      ui->lineEdit_3->setText(QString::number(robotY));
      ui->lineEdit_4->setText(QString::number(robotFi));
+     if(counter == 0){
+         ui->label_6->setText("Mapping: on");
+     }else{
+         ui->label_6->setText("Mapping: off");
+     }
+
+
 }
 
 
@@ -99,10 +106,8 @@ void MainWindow::processThisRobot()
     odometria();
     updateError();
 
-    if(datacounter%300 == 0 && mapingState){
-         //cout<< "zapisujem mapu" <<endl;
-         writeMap(mapData,"map");
-         //cout<< "mapa zapisana" << endl;
+    if(datacounter%400 == 0 && mapingState){
+         writeMapToTxt(mapData,"map");
      }
 
     if(datacounter%2 == 0){
@@ -111,7 +116,7 @@ void MainWindow::processThisRobot()
 
     if(datacounter%5)
     {
-        emit uiValuesChanged(x,y,fiAbsolute);
+        emit uiValuesChanged(x,y,fiAbsolute, counter);
     }
     datacounter++;
 
@@ -138,7 +143,7 @@ void MainWindow::on_pushButton_9_clicked() //start button
     robotthreadHandle=CreateThread(NULL,0, robotUDPVlakno, (void *)this,0,&robotthreadID);
     /*  laserthreadID=pthread_create(&laserthreadHandle,NULL,&laserUDPVlakno,(void *)this);
       robotthreadID=pthread_create(&robotthreadHandle,NULL,&robotUDPVlakno,(void *)this);*/
-    connect(this,SIGNAL(uiValuesChanged(double,double,double)),this,SLOT(setUiValues(double,double,double)));
+    connect(this,SIGNAL(uiValuesChanged(double,double,double, int)),this,SLOT(setUiValues(double,double,double, int)));
 
 }
 
@@ -405,6 +410,7 @@ void MainWindow::on_pushButton_10_clicked()
     finalTarget = loadTarget();
     newTarget = finalTarget;
     mapingState = true;
+    counter = 1;
 }
 
 double MainWindow::getAngle(double x1, double y1, double x2, double y2){
@@ -459,6 +465,7 @@ void MainWindow::regulator(){
 
        //Ak sa ocitneme v mensej vzdialenosti ako 0.05 od ciela, zaokruhlime ze sme tam, huraa
        if(newTarget.dist < 0.05){
+            counter = 1;
             isStart = false;
             isRotate = false;
             MainWindow::on_pushButton_11_clicked();  // Stop
@@ -473,6 +480,14 @@ void MainWindow::regulator(){
            reg.circ = reg.Kc/(angleError);
            reg.speed = reg.Ks*newTarget.dist;
            //-------------------------------
+
+           if(counter != 0){
+               counter++;
+               if(counter == 40){
+                   counter = 0;
+               }
+           }
+
 
            if(reg.speed > reg.max_trans_speed) reg.speed = reg.max_trans_speed;
 
@@ -516,27 +531,23 @@ void MainWindow::createMap(MapType *map){
     }
 }
 
-void MainWindow::fillMap(double distance, double angle){
+void MainWindow::updateMap(double distance, double angle){
      int xm,ym;
-     double finalAngle;
      int ofset = mapData.mapsize/2;
     qDebug() << "angle: " + QString::number(angle) + "  Distance: " + QString::number(distance);
 
-    finalAngle = (-angle*M_PI/180) + fiAbsolute; //uhol bodu voci svetovemu suradnicovemu systemu
-
     if((distance <= 1500.0) && (distance != 0.0)){
-        xm = (int)((((x)*1000.0) + (distance*cos(finalAngle)))/40.0);
-        ym = (int)((((y)*1000.0) + (distance*sin(finalAngle)))/40.0);
+        xm = (int)((((x)*1000.0) + (distance*cos((angle*M_PI/180) + fiAbsolute)))/mapData.resolution);
+        ym = (int)((((y)*1000.0) + (distance*sin((angle*M_PI/180) + fiAbsolute)))/mapData.resolution);
         mapData.map[xm+ofset][ym+ofset] = 1;
     }
 }
 
-void MainWindow::writeMap(MapType map, string name){
+void MainWindow::writeMapToTxt(MapType map, string name){
     ofstream file;
     file.open(name+".txt", ios::trunc);
     for(int i=0; i<map.mapsize; i++){
        if(!(i==0)) file<<endl;
-        //file << endl;
         for(int j=0; j<map.mapsize; j++){
             file<<map.map[i][j];
         }
