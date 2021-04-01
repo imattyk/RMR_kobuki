@@ -78,7 +78,7 @@ void MainWindow::paintEvent(QPaintEvent *event)
 
                 //updatni nasu mapu s datami z ladaru
 
-                if(!isRotate && counter == 0){
+                if(!isRotate && mappingCounter == 0){
                     updateMap(copyOfLaserData.Data[k].scanDistance, 360-copyOfLaserData.Data[k].scanAngle);
                 }
             }
@@ -86,12 +86,12 @@ void MainWindow::paintEvent(QPaintEvent *event)
     }
 }
 
-void  MainWindow::setUiValues(double robotX,double robotY,double robotFi, int counter)
+void  MainWindow::setUiValues(double robotX,double robotY,double robotFi, int mappingCounter)
 {
      ui->lineEdit_2->setText(QString::number(robotX));
      ui->lineEdit_3->setText(QString::number(robotY));
      ui->lineEdit_4->setText(QString::number(robotFi));
-     if(counter == 0){
+     if(mappingCounter == 0){
          ui->label_6->setText("Mapping: on");
      }else{
          ui->label_6->setText("Mapping: off");
@@ -105,9 +105,10 @@ void MainWindow::processThisRobot()
 {
     odometria();
     updateError();
+    mapNavigation();
 
     if(datacounter%400 == 0 && mapingState){
-         writeMapToTxt(mapData,"map");
+         writeMapToTxt("map");
      }
 
     if(datacounter%2 == 0){
@@ -116,7 +117,7 @@ void MainWindow::processThisRobot()
 
     if(datacounter%5)
     {
-        emit uiValuesChanged(x,y,fiAbsolute, counter);
+        emit uiValuesChanged(x,y,fiAbsolute, mappingCounter);
     }
     datacounter++;
 
@@ -410,7 +411,7 @@ void MainWindow::on_pushButton_10_clicked()
     finalTarget = loadTarget();
     newTarget = finalTarget;
     mapingState = true;
-    counter = 1;
+    mappingCounter = 1;
 }
 
 double MainWindow::getAngle(double x1, double y1, double x2, double y2){
@@ -465,7 +466,7 @@ void MainWindow::regulator(){
 
        //Ak sa ocitneme v mensej vzdialenosti ako 0.05 od ciela, zaokruhlime ze sme tam, huraa
        if(newTarget.dist < 0.05){
-            counter = 1;
+            mappingCounter = 1;
             isStart = false;
             isRotate = false;
             MainWindow::on_pushButton_11_clicked();  // Stop
@@ -481,10 +482,10 @@ void MainWindow::regulator(){
            reg.speed = reg.Ks*newTarget.dist;
            //-------------------------------
 
-           if(counter != 0){
-               counter++;
-               if(counter == 40){
-                   counter = 0;
+           if(mappingCounter != 0){
+               mappingCounter++;
+               if(mappingCounter == 40){
+                   mappingCounter = 0;
                }
            }
 
@@ -512,6 +513,7 @@ void MainWindow::on_pushButton_11_clicked()
 {
     on_pushButton_4_clicked();
     isStart = false;
+    isMapNavigation = false;
 }
 
 void MainWindow::rotateRobotLeft(){
@@ -534,7 +536,6 @@ void MainWindow::createMap(MapType *map){
 void MainWindow::updateMap(double distance, double angle){
      int xm,ym;
      int ofset = mapData.mapsize/2;
-    qDebug() << "angle: " + QString::number(angle) + "  Distance: " + QString::number(distance);
 
     if((distance <= 1500.0) && (distance != 0.0)){
         xm = (int)((((x)*1000.0) + (distance*cos((angle*M_PI/180) + fiAbsolute)))/mapData.resolution);
@@ -543,16 +544,149 @@ void MainWindow::updateMap(double distance, double angle){
     }
 }
 
-void MainWindow::writeMapToTxt(MapType map, string name){
+void MainWindow::writeMapToTxt(string name){
     ofstream file;
     file.open(name+".txt", ios::trunc);
-    for(int i=0; i<map.mapsize; i++){
+    for(int i=0; i<mapData.mapsize; i++){
        if(!(i==0)) file<<endl;
-        for(int j=0; j<map.mapsize; j++){
-            file<<map.map[i][j];
+        for(int j=0; j<mapData.mapsize; j++){
+            file<<mapData.map[i][j];
         }
     }
     file.close();
 
 }
 
+//Map navigation button
+void MainWindow::on_pushButton_12_clicked()
+{
+    finalTarget = loadTarget();
+    flood();
+    isMapNavigation = true;
+}
+
+void MainWindow::mapNavigation(){
+
+    if(isMapNavigation){
+        if(!path.empty() && !isStart){
+            newTarget.x = path.front().x;
+            newTarget.y = path.front().y;
+            path.pop();
+            isStart = true;
+        }
+        if(path.empty()){
+            isMapNavigation = false;
+        }
+    }
+}
+
+void MainWindow::flood(){
+    loadMapFromTxt("full_map");
+    enlargeWalls();
+    writeMapToTxt("enlargedMap");
+
+    mapData.wfinish = createWorldPoint(finalTarget.x,finalTarget.y);
+    mapData.wstart = createWorldPoint(x,y);
+
+    startTheFlood();
+
+    //TODO - find path from the map and fill path list
+}
+
+void MainWindow::loadMapFromTxt(string name){
+    fstream file;
+    string line;
+    file.open(name + ".txt", ios::in);
+    for(int i= 0; i < mapData.mapsize; i++){
+        getline(file,line);
+        for(int j=0; j<= mapData.mapsize; j++){
+            if(j!=mapData.mapsize) {
+                mapData.map[i][j] = line[j] - '0';
+         }
+        }
+    }
+    file.close();
+}
+
+void MainWindow::enlargeWalls(){
+    int enlargeSize = (robotSizeData.r/mapData.resolution);
+    //We create copy of our map on the heap using 'new', creating MapType datatype on stack caused program to exceed the stack memory allocation capacity, thus crash :(
+    MapType *copyMapPtr = new MapType();
+    *copyMapPtr = mapData;
+    for(int i=1;i<mapData.mapsize-enlargeSize;i++){
+        for(int j=1;j<mapData.mapsize-enlargeSize;j++){
+            if((mapData.map[i-1][j] == 1) && (mapData.map[i][j] == 0)){
+                for(int counter = enlargeSize;counter>0;counter--){
+                    copyMapPtr->map[i+counter][j] = 1;
+                    }
+                for(int counter = enlargeSize;counter>0;counter--){
+                    copyMapPtr->map[i-counter][j] = 1;
+                    }
+                }
+            if((mapData.map[i][j-1] == 1) && (mapData.map[i][j] == 0)){
+                for(int counter = enlargeSize;counter>0;counter--){
+                    copyMapPtr->map[i][j+counter] = 1;
+                    }
+                for(int counter = enlargeSize;counter>0;counter--){
+                    copyMapPtr->map[i][j-counter] = 1;
+                }
+            }
+        }
+    }
+    mapData = *copyMapPtr;
+}
+
+worldPoint MainWindow::createWorldPoint(double x, double y){
+    worldPoint point;
+    point.x = x;
+    point.y = y;
+    return point;
+}
+
+MapPoint MainWindow::createMapPoint(int x, int y, int value){
+    MapPoint point;
+    point.x = x;
+    point.y = y;
+    point.value = value;
+    return point;
+}
+
+void MainWindow::startTheFlood(){
+    MapType *copyMapPtr = new MapType();
+    *copyMapPtr = mapData;
+    list<MapPoint> points2go;
+    mapData.mfinish = world2mapConverter(mapData.wfinish.x,mapData.wfinish.y); mapData.mfinish.value = 2;
+    mapData.mstart = world2mapConverter(mapData.wstart.x,mapData.wstart.y); mapData.mstart.value = 123456;
+    int smerX[4] = {-1,0,0,1};
+    int smerY[4] = {0,-1,1,0};
+
+    copyMapPtr->map[copyMapPtr->mstart.x][copyMapPtr->mstart.y] = copyMapPtr->mstart.value;
+    points2go.push_back(copyMapPtr->mfinish);
+    points2go.begin()->value = 3;
+    copyMapPtr->map[points2go.begin()->x][points2go.begin()->y] = points2go.begin()->value-1; //koncovy bod
+
+
+    while(!points2go.empty()){
+        for(int i=0;i<4;i++){
+            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 123456) break; //need to check this! edit:this is when the same coordinates as are current are entered.
+            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 0){ // prehladavam 4 susednost
+                     points2go.push_back(createMapPoint(points2go.begin()->x + smerX[i], points2go.begin()->y +smerY[i], (points2go.begin()->value + 1))); // vlozim novy bod na koniec listu s novymi suradnicami a hodnotou
+                     copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] = points2go.begin()->value; //nastavim value zaplavoveho algoritmu v mape
+            }
+        }
+        points2go.pop_front(); // zahodim bod ktory som uz presiel
+    }
+
+    mapData = *copyMapPtr;
+}
+
+MapPoint MainWindow::world2mapConverter(double x_w, double y_w){
+    MapPoint tmpPoint;
+    int ofset = mapData.mapsize/2;
+    tmpPoint.x = (int)(x_w*1000.0/40.0);
+    tmpPoint.y = (int)(y_w*1000.0/40.0);
+
+    tmpPoint.x += ofset;
+    tmpPoint.y += ofset;
+    return tmpPoint;
+}

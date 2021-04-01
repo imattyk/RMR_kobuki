@@ -15,6 +15,7 @@
 #include<vector>
 #include "ckobuki.h"
 #include "rplidar.h"
+#include<queue>
 /*#include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include "opencv2/imgproc/imgproc.hpp"
@@ -40,6 +41,10 @@ typedef struct{
     int mapsize = 400;
     int map[400][400];
     double resolution = 40 ; //  mm
+    MapPoint mstart;
+    MapPoint mfinish;
+    worldPoint wstart;
+    worldPoint wfinish;
 }MapType;
 
 typedef struct{
@@ -110,7 +115,15 @@ public:
     void rotateRobotRight();
     void createMap(MapType *map);
     void updateMap(double distance, double angle);
-    void writeMapToTxt(MapType map, string name);
+    void writeMapToTxt(string name);
+    void mapNavigation();
+    void flood();
+    void loadMapFromTxt(string name);
+    void enlargeWalls();
+    worldPoint createWorldPoint(double x, double y);
+    MapPoint createMapPoint(int x, int y, int value);
+    void startTheFlood();
+    MapPoint world2mapConverter(double x_w, double y_w);
 
 private slots:
     void on_pushButton_9_clicked();
@@ -132,6 +145,8 @@ private slots:
 
     void on_pushButton_11_clicked();
 
+    void on_pushButton_12_clicked();
+
 private:
      JOYINFO joystickInfo;
     Ui::MainWindow *ui;
@@ -149,13 +164,16 @@ private:
      boolean isNavigation = false;
      boolean isStart = false;
      boolean isRotate = false;
+     boolean isMapNavigation = false;
      worldPoint newTarget;
      worldPoint finalTarget;
      double angleError = 0.0;
      Regstruct reg;
      MapType mapData;
      boolean mapingState = false;
-     int counter;
+     int mappingCounter;
+     queue<worldPoint> path;
+     RobotSizeData robotSizeData;
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi, int counter);

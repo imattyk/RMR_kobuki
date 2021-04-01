@@ -43,6 +43,13 @@ typedef struct
 	unsigned short z;
 
 }TRawGyroData;
+
+typedef struct
+{
+    double diameter = 350.0; // mm
+    double r = 175.0;
+} RobotSizeData;
+
 typedef struct
 {
 	//Hardware Version
