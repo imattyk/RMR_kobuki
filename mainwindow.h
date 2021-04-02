@@ -115,15 +115,20 @@ public:
     void rotateRobotRight();
     void createMap(MapType *map);
     void updateMap(double distance, double angle);
-    void writeMapToTxt(string name);
+    void writeMapToTxt(string name, MapType* map);
     void mapNavigation();
     void flood();
-    void loadMapFromTxt(string name);
-    void enlargeWalls();
+    MapType* loadMapFromTxt(string name);
+    MapType* enlargeWalls(MapType* map);
     worldPoint createWorldPoint(double x, double y);
     MapPoint createMapPoint(int x, int y, int value);
-    void startTheFlood();
+    MapType* startTheFlood(MapType* map);
     MapPoint world2mapConverter(double x_w, double y_w);
+    worldPoint map2worldConverter(int x_m, int y_m);
+    void writeMapToCsv(string name, MapType* map);
+    list<MapPoint> pathFinder(MapType *map);
+    queue<worldPoint> map2worldPath(list<MapPoint> mappath);
+
 
 private slots:
     void on_pushButton_9_clicked();
@@ -172,8 +177,10 @@ private:
      MapType mapData;
      boolean mapingState = false;
      int mappingCounter;
+     list<MapPoint> mappath;
      queue<worldPoint> path;
      RobotSizeData robotSizeData;
+     MapType *navigationMapPtr = new MapType();
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi, int counter);

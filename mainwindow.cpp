@@ -108,7 +108,7 @@ void MainWindow::processThisRobot()
     mapNavigation();
 
     if(datacounter%400 == 0 && mapingState){
-         writeMapToTxt("map");
+        writeMapToTxt("map", &mapData);
      }
 
     if(datacounter%2 == 0){
@@ -464,18 +464,20 @@ void MainWindow::regulator(){
             isRotate = false;
         }
 
+        qDebug() << "X: " + QString::number(newTarget.x);
+        qDebug() << "Y: " + QString::number(newTarget.y);
        //Ak sa ocitneme v mensej vzdialenosti ako 0.05 od ciela, zaokruhlime ze sme tam, huraa
        if(newTarget.dist < 0.05){
             mappingCounter = 1;
             isStart = false;
             isRotate = false;
-            MainWindow::on_pushButton_11_clicked();  // Stop
+            isStart = false;
+            on_pushButton_4_clicked(); //stop
         }
 
 
        //ak sa teda vysavac netoci tak moze ist
        if(!isRotate && isStart){
-           //qDebug() << newTarget.dist;
            // Rozbeh po kruznici
            //-------------------------------
            reg.circ = reg.Kc/(angleError);
@@ -544,13 +546,13 @@ void MainWindow::updateMap(double distance, double angle){
     }
 }
 
-void MainWindow::writeMapToTxt(string name){
+void MainWindow::writeMapToTxt(string name, MapType* map){
     ofstream file;
     file.open(name+".txt", ios::trunc);
-    for(int i=0; i<mapData.mapsize; i++){
+    for(int i=0; i<map->mapsize; i++){
        if(!(i==0)) file<<endl;
-        for(int j=0; j<mapData.mapsize; j++){
-            file<<mapData.map[i][j];
+        for(int j=0; j<map->mapsize; j++){
+            file<<map->map[i][j];
         }
     }
     file.close();
@@ -568,7 +570,9 @@ void MainWindow::on_pushButton_12_clicked()
 void MainWindow::mapNavigation(){
 
     if(isMapNavigation){
+        qDebug() << "isStart: " + QString::number(isStart) + "   Path size left: " + QString::number(path.size());
         if(!path.empty() && !isStart){
+            qDebug() << "Size left: " + QString::number(path.size()) + "  x: " + QString::number(path.front().x) + "  y: " + QString::number(path.front().y);
             newTarget.x = path.front().x;
             newTarget.y = path.front().y;
             path.pop();
@@ -581,41 +585,45 @@ void MainWindow::mapNavigation(){
 }
 
 void MainWindow::flood(){
-    loadMapFromTxt("full_map");
-    enlargeWalls();
-    writeMapToTxt("enlargedMap");
+    navigationMapPtr = loadMapFromTxt("full_map");
+    navigationMapPtr = enlargeWalls(navigationMapPtr);
+    writeMapToTxt("enlarged_map", navigationMapPtr);
 
-    mapData.wfinish = createWorldPoint(finalTarget.x,finalTarget.y);
-    mapData.wstart = createWorldPoint(x,y);
+    navigationMapPtr->wfinish = createWorldPoint(finalTarget.x,finalTarget.y);
+    navigationMapPtr->wstart = createWorldPoint(x,y);
 
-    startTheFlood();
-
-    //TODO - find path from the map and fill path list
+    navigationMapPtr = startTheFlood(navigationMapPtr);
+    //writeMapToTxt("flooded_map", navigationMapPtr);
+    writeMapToCsv("flooded_map",navigationMapPtr);
+    mappath = pathFinder(navigationMapPtr);
+    path = map2worldPath(mappath);
 }
 
-void MainWindow::loadMapFromTxt(string name){
+MapType* MainWindow::loadMapFromTxt(string name){
     fstream file;
     string line;
+    MapType *tmpMapPtr = new MapType();
     file.open(name + ".txt", ios::in);
-    for(int i= 0; i < mapData.mapsize; i++){
+    for(int i= 0; i < tmpMapPtr->mapsize; i++){
         getline(file,line);
-        for(int j=0; j<= mapData.mapsize; j++){
-            if(j!=mapData.mapsize) {
-                mapData.map[i][j] = line[j] - '0';
+        for(int j=0; j<= tmpMapPtr->mapsize; j++){
+            if(j!=tmpMapPtr->mapsize) {
+                tmpMapPtr->map[i][j] = line[j] - '0';
          }
         }
     }
     file.close();
+    return tmpMapPtr;
 }
 
-void MainWindow::enlargeWalls(){
-    int enlargeSize = (robotSizeData.r/mapData.resolution);
+MapType* MainWindow::enlargeWalls(MapType* map){
+    int enlargeSize = (robotSizeData.r/map->resolution);
     //We create copy of our map on the heap using 'new', creating MapType datatype on stack caused program to exceed the stack memory allocation capacity, thus crash :(
     MapType *copyMapPtr = new MapType();
-    *copyMapPtr = mapData;
-    for(int i=1;i<mapData.mapsize-enlargeSize;i++){
-        for(int j=1;j<mapData.mapsize-enlargeSize;j++){
-            if((mapData.map[i-1][j] == 1) && (mapData.map[i][j] == 0)){
+    *copyMapPtr = *map;
+    for(int i=1;i<map->mapsize-enlargeSize;i++){
+        for(int j=1;j<map->mapsize-enlargeSize;j++){
+            if((map->map[i-1][j] == 1) && (map->map[i][j] == 0)){
                 for(int counter = enlargeSize;counter>0;counter--){
                     copyMapPtr->map[i+counter][j] = 1;
                     }
@@ -623,7 +631,7 @@ void MainWindow::enlargeWalls(){
                     copyMapPtr->map[i-counter][j] = 1;
                     }
                 }
-            if((mapData.map[i][j-1] == 1) && (mapData.map[i][j] == 0)){
+            if((map->map[i][j-1] == 1) && (map->map[i][j] == 0)){
                 for(int counter = enlargeSize;counter>0;counter--){
                     copyMapPtr->map[i][j+counter] = 1;
                     }
@@ -633,7 +641,7 @@ void MainWindow::enlargeWalls(){
             }
         }
     }
-    mapData = *copyMapPtr;
+    return copyMapPtr;
 }
 
 worldPoint MainWindow::createWorldPoint(double x, double y){
@@ -651,12 +659,12 @@ MapPoint MainWindow::createMapPoint(int x, int y, int value){
     return point;
 }
 
-void MainWindow::startTheFlood(){
+MapType* MainWindow::startTheFlood(MapType* map){
     MapType *copyMapPtr = new MapType();
-    *copyMapPtr = mapData;
+    *copyMapPtr = *map;
     list<MapPoint> points2go;
-    mapData.mfinish = world2mapConverter(mapData.wfinish.x,mapData.wfinish.y); mapData.mfinish.value = 2;
-    mapData.mstart = world2mapConverter(mapData.wstart.x,mapData.wstart.y); mapData.mstart.value = 123456;
+    copyMapPtr->mfinish = world2mapConverter(copyMapPtr->wfinish.x,copyMapPtr->wfinish.y); copyMapPtr->mfinish.value = 2;
+    copyMapPtr->mstart = world2mapConverter(copyMapPtr->wstart.x,copyMapPtr->wstart.y); copyMapPtr->mstart.value = 123456;
     int smerX[4] = {-1,0,0,1};
     int smerY[4] = {0,-1,1,0};
 
@@ -668,7 +676,7 @@ void MainWindow::startTheFlood(){
 
     while(!points2go.empty()){
         for(int i=0;i<4;i++){
-            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 123456) break; //need to check this! edit:this is when the same coordinates as are current are entered.
+            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 123456) return copyMapPtr; //need to check this! edit:this is when the same coordinates as are current are entered.
             if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 0){ // prehladavam 4 susednost
                      points2go.push_back(createMapPoint(points2go.begin()->x + smerX[i], points2go.begin()->y +smerY[i], (points2go.begin()->value + 1))); // vlozim novy bod na koniec listu s novymi suradnicami a hodnotou
                      copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] = points2go.begin()->value; //nastavim value zaplavoveho algoritmu v mape
@@ -677,7 +685,7 @@ void MainWindow::startTheFlood(){
         points2go.pop_front(); // zahodim bod ktory som uz presiel
     }
 
-    mapData = *copyMapPtr;
+    return copyMapPtr;
 }
 
 MapPoint MainWindow::world2mapConverter(double x_w, double y_w){
@@ -689,4 +697,79 @@ MapPoint MainWindow::world2mapConverter(double x_w, double y_w){
     tmpPoint.x += ofset;
     tmpPoint.y += ofset;
     return tmpPoint;
+}
+
+worldPoint MainWindow::map2worldConverter( int x_m, int y_m){
+    int ofset = mapData.mapsize/2;
+    worldPoint tmpPoint;
+    tmpPoint.x = ((double)(x_m-ofset))*40.0/1000.0;
+    tmpPoint.y = ((double)(y_m-ofset))*40.0/1000.0;
+
+    return tmpPoint;
+}
+
+
+void MainWindow::writeMapToCsv(string name, MapType *map){
+    ofstream file;
+    file.open(name+".csv", ios::trunc);
+    for(int i=0; i<map->mapsize; i++){
+       if(!(i==0)) file<<endl;
+        //file << endl;
+        for(int j=0; j<map->mapsize; j++){
+            if(j!=map->mapsize-1) file<<map->map[i][j]<<",";
+            else file<<map->map[i][j];
+        }
+    }
+    file.close();
+
+}
+
+list<MapPoint> MainWindow::pathFinder(MapType *map){
+    int smerY[4] = {0,1,0,-1};
+    int smerX[4] = {-1,0,1,0};
+    int psmer = 0;
+    int lowval,lowsmer;
+    int counter=0;
+    list<MapPoint> points2go;
+    list<MapPoint> pathPoints;
+    MapPoint position = map->mstart;
+    MapPoint pposition;
+
+    lowval = 999999;
+     while(position.value != map->mfinish.value){
+        for(int i=0;i<4;i++){
+           if(map->map[(position.x)+smerX[i]][(position.y)+smerY[i]] > 1 && map->map[(position.x+smerX[i])][(position.y +smerY[i])] <lowval){ //ak nie je stena a je najmensi najdeny
+               if(!points2go.empty()) points2go.pop_front();    // ak nie je prazny tak ho odstran
+               points2go.push_back(createMapPoint(position.x + smerX[i], position.y +smerY[i], map->map[(position.x+smerX[i])][(position.y +smerY[i])]));
+               lowval = points2go.begin()->value;// nastav najmensiu hodnotu okolia
+               lowsmer = i; // nastav smer
+           }
+          // MapPoint debug = setPoint(position.x + smerX[i], position.y +smerY[i], map.map[(position.x+smerX[i])][(position.y +smerY[i])]);
+       }
+       // posun sa v smere
+
+       pposition = position;
+       position.x = points2go.begin()->x;
+       position.y = points2go.begin()->y;
+       position.value = points2go.begin()->value;
+       if(psmer != lowsmer && counter != 0){    // ak sa zmenil smer a nie je to prvy posun
+           pathPoints.push_back(pposition);  // pridaj uzol
+           psmer = lowsmer; // nastav novy smer
+       }
+       counter++;
+       if(position.value == map->mfinish.value) pathPoints.push_back(position);
+    }
+
+   return pathPoints;
+}
+
+queue<worldPoint> MainWindow::map2worldPath(list<MapPoint> mappath){
+    queue<worldPoint> wrldpath;
+    int count = 0;
+    while(!mappath.empty()){
+            wrldpath.push(map2worldConverter(mappath.begin()->x,mappath.begin()->y));
+            mappath.pop_front();
+            count++;
+    }
+    return wrldpath;
 }

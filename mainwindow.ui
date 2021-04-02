@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>812</width>
-    <height>608</height>
+    <height>627</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -235,7 +235,7 @@
       <item>
        <widget class="QPushButton" name="pushButton_10">
         <property name="text">
-         <string>Start LADAR Navigation</string>
+         <string>Start LIDAR Navigation</string>
         </property>
        </widget>
       </item>
