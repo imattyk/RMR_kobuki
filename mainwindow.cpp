@@ -450,7 +450,7 @@ void MainWindow::updateError(){
 
 void MainWindow::regulator(){
     if(isStart){
-        if(abs(angleError)>(M_PI_4)){
+        if(abs(angleError)>(M_PI_4/6)){
             if(angleError > 0){
                 rotateRobotLeft();
                 isRotate = true;
@@ -464,8 +464,8 @@ void MainWindow::regulator(){
             isRotate = false;
         }
 
-        qDebug() << "X: " + QString::number(newTarget.x);
-        qDebug() << "Y: " + QString::number(newTarget.y);
+        //qDebug() << "X: " + QString::number(newTarget.x);
+        //qDebug() << "Y: " + QString::number(newTarget.y);
        //Ak sa ocitneme v mensej vzdialenosti ako 0.05 od ciela, zaokruhlime ze sme tam, huraa
        if(newTarget.dist < 0.05){
             mappingCounter = 1;
@@ -563,16 +563,18 @@ void MainWindow::writeMapToTxt(string name, MapType* map){
 void MainWindow::on_pushButton_12_clicked()
 {
     finalTarget = loadTarget();
+    mapName = ui->lineEdit_7->text();
     flood();
     isMapNavigation = true;
+    mapingState = true;
 }
 
 void MainWindow::mapNavigation(){
 
     if(isMapNavigation){
-        qDebug() << "isStart: " + QString::number(isStart) + "   Path size left: " + QString::number(path.size());
+        //qDebug() << "isStart: " + QString::number(isStart) + "   Path size left: " + QString::number(path.size());
         if(!path.empty() && !isStart){
-            qDebug() << "Size left: " + QString::number(path.size()) + "  x: " + QString::number(path.front().x) + "  y: " + QString::number(path.front().y);
+            //qDebug() << "Size left: " + QString::number(path.size()) + "  x: " + QString::number(path.front().x) + "  y: " + QString::number(path.front().y);
             newTarget.x = path.front().x;
             newTarget.y = path.front().y;
             path.pop();
@@ -585,7 +587,11 @@ void MainWindow::mapNavigation(){
 }
 
 void MainWindow::flood(){
-    navigationMapPtr = loadMapFromTxt("full_map");
+    if(mapName == ""){
+
+    }else{
+        navigationMapPtr = loadMapFromTxt(mapName.toStdString());
+    }
     navigationMapPtr = enlargeWalls(navigationMapPtr);
     writeMapToTxt("enlarged_map", navigationMapPtr);
 
@@ -617,26 +623,30 @@ MapType* MainWindow::loadMapFromTxt(string name){
 }
 
 MapType* MainWindow::enlargeWalls(MapType* map){
-    int enlargeSize = (robotSizeData.r/map->resolution);
+    int enlargeSize = ((robotSizeData.r+200)/map->resolution);
     //We create copy of our map on the heap using 'new', creating MapType datatype on stack caused program to exceed the stack memory allocation capacity, thus crash :(
     MapType *copyMapPtr = new MapType();
     *copyMapPtr = *map;
     for(int i=1;i<map->mapsize-enlargeSize;i++){
         for(int j=1;j<map->mapsize-enlargeSize;j++){
             if((map->map[i-1][j] == 1) && (map->map[i][j] == 0)){
-                for(int counter = enlargeSize;counter>0;counter--){
-                    copyMapPtr->map[i+counter][j] = 1;
+                for(int shift = enlargeSize; shift>0; shift--){
+                    for(int counter = enlargeSize;counter>0;counter--){
+                        copyMapPtr->map[i+counter][((j-shift)+enlargeSize/2)] = 1;
                     }
-                for(int counter = enlargeSize;counter>0;counter--){
-                    copyMapPtr->map[i-counter][j] = 1;
+                    for(int counter = enlargeSize;counter>0;counter--){
+                        copyMapPtr->map[i-counter][((j-shift)+enlargeSize/2)] = 1;
                     }
                 }
+            }
             if((map->map[i][j-1] == 1) && (map->map[i][j] == 0)){
-                for(int counter = enlargeSize;counter>0;counter--){
-                    copyMapPtr->map[i][j+counter] = 1;
+                for(int shift = enlargeSize; shift>0; shift--){
+                    for(int counter = enlargeSize;counter>0;counter--){
+                        copyMapPtr->map[(i-shift)+enlargeSize/2][j+counter] = 1;
+                        }
+                    for(int counter = enlargeSize;counter>0;counter--){
+                        copyMapPtr->map[(i-shift)+enlargeSize/2][j-counter] = 1;
                     }
-                for(int counter = enlargeSize;counter>0;counter--){
-                    copyMapPtr->map[i][j-counter] = 1;
                 }
             }
         }
@@ -663,26 +673,34 @@ MapType* MainWindow::startTheFlood(MapType* map){
     MapType *copyMapPtr = new MapType();
     *copyMapPtr = *map;
     list<MapPoint> points2go;
-    copyMapPtr->mfinish = world2mapConverter(copyMapPtr->wfinish.x,copyMapPtr->wfinish.y); copyMapPtr->mfinish.value = 2;
-    copyMapPtr->mstart = world2mapConverter(copyMapPtr->wstart.x,copyMapPtr->wstart.y); copyMapPtr->mstart.value = 123456;
-    int smerX[4] = {-1,0,0,1};
-    int smerY[4] = {0,-1,1,0};
+    copyMapPtr->mfinish = world2mapConverter(copyMapPtr->wfinish.x,copyMapPtr->wfinish.y);
+    copyMapPtr->mfinish.value = 2;
+    copyMapPtr->mstart = world2mapConverter(copyMapPtr->wstart.x,copyMapPtr->wstart.y);
+    copyMapPtr->mstart.value = 95201;
+    int dirX[4] = {-1,0,0,1};
+    int dirY[4] = {0,-1,1,0};
 
     copyMapPtr->map[copyMapPtr->mstart.x][copyMapPtr->mstart.y] = copyMapPtr->mstart.value;
     points2go.push_back(copyMapPtr->mfinish);
     points2go.begin()->value = 3;
-    copyMapPtr->map[points2go.begin()->x][points2go.begin()->y] = points2go.begin()->value-1; //koncovy bod
+    copyMapPtr->map[points2go.begin()->x][points2go.begin()->y] = points2go.begin()->value-1; //end point
 
 
     while(!points2go.empty()){
+        // checking 4 neighbours
         for(int i=0;i<4;i++){
-            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 123456) return copyMapPtr; //need to check this! edit:this is when the same coordinates as are current are entered.
-            if(copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] == 0){ // prehladavam 4 susednost
-                     points2go.push_back(createMapPoint(points2go.begin()->x + smerX[i], points2go.begin()->y +smerY[i], (points2go.begin()->value + 1))); // vlozim novy bod na koniec listu s novymi suradnicami a hodnotou
-                     copyMapPtr->map[(points2go.begin()->x)+smerX[i]][(points2go.begin()->y)+smerY[i]] = points2go.begin()->value; //nastavim value zaplavoveho algoritmu v mape
+            if(copyMapPtr->map[(points2go.begin()->x)+dirX[i]][(points2go.begin()->y)+dirY[i]] == 95201){
+                return copyMapPtr; //We found the way
+            }
+            if(copyMapPtr->map[(points2go.begin()->x)+dirX[i]][(points2go.begin()->y)+dirY[i]] == 0){
+                // insert new point at the end of the list with new coordinates
+                points2go.push_back(createMapPoint(points2go.begin()->x + dirX[i], points2go.begin()->y +dirY[i], (points2go.begin()->value + 1)));
+
+                //set value of next step in flood
+                copyMapPtr->map[(points2go.begin()->x)+dirX[i]][(points2go.begin()->y)+dirY[i]] = points2go.begin()->value;
             }
         }
-        points2go.pop_front(); // zahodim bod ktory som uz presiel
+        points2go.pop_front(); // pop the last checked point
     }
 
     return copyMapPtr;
@@ -725,38 +743,50 @@ void MainWindow::writeMapToCsv(string name, MapType *map){
 }
 
 list<MapPoint> MainWindow::pathFinder(MapType *map){
-    int smerY[4] = {0,1,0,-1};
-    int smerX[4] = {-1,0,1,0};
-    int psmer = 0;
-    int lowval,lowsmer;
-    int counter=0;
+    int dirY[4] = {0,1,0,-1};
+    int dirX[4] = {-1,0,1,0};
+    int prewDir = 0;
+    int lowVal,lowDir;
+    boolean firstMove = true;
     list<MapPoint> points2go;
     list<MapPoint> pathPoints;
     MapPoint position = map->mstart;
-    MapPoint pposition;
+    MapPoint prewPosition;
 
-    lowval = 999999;
+    lowVal = 999999; //some huuge value that will be higher than anything for start
      while(position.value != map->mfinish.value){
         for(int i=0;i<4;i++){
-           if(map->map[(position.x)+smerX[i]][(position.y)+smerY[i]] > 1 && map->map[(position.x+smerX[i])][(position.y +smerY[i])] <lowval){ //ak nie je stena a je najmensi najdeny
-               if(!points2go.empty()) points2go.pop_front();    // ak nie je prazny tak ho odstran
-               points2go.push_back(createMapPoint(position.x + smerX[i], position.y +smerY[i], map->map[(position.x+smerX[i])][(position.y +smerY[i])]));
-               lowval = points2go.begin()->value;// nastav najmensiu hodnotu okolia
-               lowsmer = i; // nastav smer
-           }
-          // MapPoint debug = setPoint(position.x + smerX[i], position.y +smerY[i], map.map[(position.x+smerX[i])][(position.y +smerY[i])]);
-       }
-       // posun sa v smere
+           //if there is no wall and is the smallest
+           if(map->map[(position.x)+dirX[i]][(position.y)+dirY[i]] > 1 && map->map[(position.x+dirX[i])][(position.y +dirY[i])] < lowVal){
 
-       pposition = position;
+               if(!points2go.empty()) {
+                   points2go.pop_front();
+               }
+
+               points2go.push_back(createMapPoint(position.x + dirX[i], position.y +dirY[i], map->map[(position.x+dirX[i])][(position.y +dirY[i])]));
+               //set lowest value of neighbours
+               lowVal = points2go.begin()->value;
+               //set direction
+               lowDir = i;
+           }
+       }
+
+       // move in the direction
+       prewPosition = position;
        position.x = points2go.begin()->x;
        position.y = points2go.begin()->y;
        position.value = points2go.begin()->value;
-       if(psmer != lowsmer && counter != 0){    // ak sa zmenil smer a nie je to prvy posun
-           pathPoints.push_back(pposition);  // pridaj uzol
-           psmer = lowsmer; // nastav novy smer
+
+       //if direction was changed and this was not our first move
+       if(prewDir != lowDir && !firstMove){
+           // add path point
+           pathPoints.push_back(prewPosition);
+           // set new direction
+           prewDir = lowDir;
        }
-       counter++;
+       firstMove = false;
+
+       // we found the end
        if(position.value == map->mfinish.value) pathPoints.push_back(position);
     }
 

@@ -247,6 +247,23 @@
        </widget>
       </item>
       <item>
+       <widget class="QLabel" name="label_12">
+        <property name="text">
+         <string>Enter map file name</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLineEdit" name="lineEdit_7"/>
+      </item>
+      <item>
+       <widget class="Line" name="line_4">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="pushButton_11">
         <property name="text">
          <string>Stop Navigation</string>

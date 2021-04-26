@@ -181,11 +181,12 @@ private:
      queue<worldPoint> path;
      RobotSizeData robotSizeData;
      MapType *navigationMapPtr = new MapType();
+     QString mapName = "";
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi, int counter);
 signals:
-     void uiValuesChanged(double newrobotX,double newrobotY,double newrobotFi, int counter); ///toto nema telo
+     void uiValuesChanged(double newrobotX,double newrobotY,double newrobotFi, int counter);
 
 
 };
