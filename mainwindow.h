@@ -16,6 +16,7 @@
 #include "ckobuki.h"
 #include "rplidar.h"
 #include<queue>
+#include<QMutex>
 /*#include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include "opencv2/imgproc/imgproc.hpp"
@@ -23,6 +24,58 @@
 #include "opencv2/core/utility.hpp"
 #include "opencv2/videoio.hpp"
 #include "opencv2/imgcodecs.hpp"*/
+
+typedef struct {
+    //najblizsi bod
+    double minDcrit;
+    double minDist;
+    double minAngle;
+    double forminAngle;
+    double minX;
+    double minY;
+    //lavy kraj
+    double DcritL;
+    double DistL;
+    double AngleL;
+    double formAngleL;
+    double XL;
+    double YL;
+    //pravy kraj
+    double DcritR;
+    double DistR;
+    double AngleR;
+    double formAngleR;
+    double XR;
+    double YR;
+
+    double maxDistL;
+    double maxAngleL;
+    double maxXL;
+    double maxYL;
+
+    double maxDistR;
+    double maxAngleR;
+    double maxXR;
+    double maxYR;
+
+    bool minPoint;
+    bool minPointL;
+    bool minPointR;
+    bool maxPointL;
+    bool maxPointR;
+
+    double minDistT;
+    double minAngleT;
+    double forminAngleT;
+    double minXT;
+    double minYT;
+    double minPointT;
+}MyLidarData;
+
+typedef struct {
+    double minDist2Target;
+    double minDist2Fintarget;
+}WallFollowData;
 
 typedef struct{
     double x;
@@ -110,7 +163,7 @@ public:
     double getDistance(double x1, double y1, double x2, double y2);
     void updateError();
     void regulator();
-    void navigation();
+    void ladarNavigation();
     void rotateRobotLeft();
     void rotateRobotRight();
     void createMap(MapType *map);
@@ -128,6 +181,10 @@ public:
     void writeMapToCsv(string name, MapType* map);
     list<MapPoint> pathFinder(MapType *map);
     queue<worldPoint> map2worldPath(list<MapPoint> mappath);
+    bool isPathBlocked();
+    double fixAngle(double angle);
+
+    QMutex mutex;
 
 
 private slots:
@@ -166,10 +223,12 @@ private:
      double prewEncoderL,prewEncoderR,startEncL,startEncR,distanceL,distanceR,pDistanceL,pDistanceR = 0.0;
      double fi,prewFi,x,y,fiAbsolute = 0.0;
      boolean firstRun = true;
-     boolean isNavigation = false;
+     boolean isLadarNavigation = false;
      boolean isStart = false;
      boolean isRotate = false;
      boolean isMapNavigation = false;
+     boolean isGoToPoint = false;
+     boolean isWallFollow = false;
      worldPoint newTarget;
      worldPoint finalTarget;
      double angleError = 0.0;
@@ -182,6 +241,9 @@ private:
      RobotSizeData robotSizeData;
      MapType *navigationMapPtr = new MapType();
      QString mapName = "";
+     MyLidarData lD4R;
+     WallFollowData navigateData;
+     boolean firstPathBlockedCycle = true;
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi, int counter);

@@ -23,9 +23,11 @@ MainWindow::MainWindow(QWidget *parent) :
  //   connect(timer, SIGNAL(timeout()), this, SLOT(getNewFrame()));
     actIndex=-1;
     useCamera=false;
+
     createMap(&mapData);
 
-
+    lD4R.minDcrit = robotSizeData.diameter;
+    lD4R.DcritR = lD4R.DcritL = 2.5*robotSizeData.diameter/(sin(45.0));
 
     datacounter=0;
 
@@ -41,48 +43,172 @@ void MainWindow::paintEvent(QPaintEvent *event)
 {
     QPainter painter(this);
     painter.setBrush(Qt::black);
-    QPen pero;
+    QPen pero,redPen,magentaPen,yellowPen,bluePen;
+
     pero.setStyle(Qt::SolidLine);
     pero.setWidth(3);
     pero.setColor(Qt::green);
+
+    redPen.setStyle(Qt::SolidLine); //styl pera - plna ciara
+    redPen.setWidth(3);//hrubka pera -3pixely
+    redPen.setColor(Qt::red);//farba je cervena
+
+    magentaPen.setStyle(Qt::SolidLine); //styl pera - plna ciara
+    magentaPen.setWidth(3);//hrubka pera -3pixely
+    magentaPen.setColor(Qt::magenta);//farba je magenta
+
+    yellowPen.setStyle(Qt::SolidLine); //styl pera - plna ciara
+    yellowPen.setWidth(3);//hrubka pera -3pixely
+    yellowPen.setColor(Qt::yellow);//farba je zlta
+
+    bluePen.setStyle(Qt::SolidLine); //styl pera - plna ciara
+    bluePen.setWidth(3);//hrubka pera -3pixely
+    bluePen.setColor(Qt::cyan);//farba je bledo modra
+
     QRect rect(20,120,700,500);
     rect= ui->frame->geometry();
     rect.translate(0,15);
     painter.drawRect(rect);
 
-  /*  if(useCamera==true)
+
+
+    if(updateLaserPicture==1)
     {
-        std::cout<<actIndex<<std::endl;
-        QImage image = QImage((uchar*)frame[actIndex].data, frame[actIndex].cols, frame[actIndex].rows, frame[actIndex].step, QImage::Format_RGB888  );
-        painter.drawImage(rect,image.rgbSwapped());
-    }
-    else*/
-    {
-        if(updateLaserPicture==1)
+        mutex.lock();
+        updateLaserPicture=0;
+        double  angleDiff;
+        painter.setPen(pero);
+        //teraz tu kreslime random udaje... vykreslite to co treba... t.j. data z lidaru
+     //   std::cout<<copyOfLaserData.numberOfScans<<std::endl;
+
+        lD4R.minDist = HUGE_VAL;
+        lD4R.minAngle = HUGE_VAL;
+        lD4R.DistL = HUGE_VAL;
+        lD4R.AngleL = HUGE_VAL;
+        lD4R.DistR = HUGE_VAL;
+        lD4R.AngleR = HUGE_VAL;
+        lD4R.maxDistL = -HUGE_VAL;
+        lD4R.maxAngleL = -HUGE_VAL;
+        lD4R.maxDistR = -HUGE_VAL;
+        lD4R.maxAngleR = -HUGE_VAL;
+        lD4R.minDistT = HUGE_VAL;
+        lD4R.minAngleT = HUGE_VAL;
+        newTarget = loadTarget();
+        newTarget.fi= getAngle(x,y,newTarget.x,newTarget.y);
+        newTarget.dist = getDistance(x,y,newTarget.x,newTarget.y);
+        updateError();
+
+        for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
         {
-            updateLaserPicture=0;
 
-            painter.setPen(pero);
-            //teraz tu kreslime random udaje... vykreslite to co treba... t.j. data z lidaru
-         //   std::cout<<copyOfLaserData.numberOfScans<<std::endl;
-            for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
-            {
-                /*  int dist=rand()%500;
-            int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-k)*3.14159/180.0))+rect.topLeft().x();
-            int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-k)*3.14159/180.0))+rect.topLeft().y();*/
-                int dist=copyOfLaserData.Data[k].scanDistance/20;
-                int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().x();
-                int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().y();
-                if(rect.contains(xp,yp))
-                    painter.drawEllipse(QPoint(xp, yp),2,2);
 
-                //updatni nasu mapu s datami z ladaru
+            /// formatovanie uhla a detekcia prekazky vzhladom na newTarget z pozicie robota
+            angleDiff = (fiAbsolute - newTarget.fi)*180/M_PI;
+            if (angleDiff < 0) angleDiff = 360 + angleDiff;
 
-                if(!isRotate && mappingCounter == 0){
-                    updateMap(copyOfLaserData.Data[k].scanDistance, 360-copyOfLaserData.Data[k].scanAngle);
+            ///zistujem prekazku na uhle voci bodu
+           if (copyOfLaserData.Data[k].scanDistance < lD4R.minDist && copyOfLaserData.Data[k].scanDistance < 2000.0 && ((fmod(copyOfLaserData.Data[k].scanAngle,360.0)) < 3  || (fmod(copyOfLaserData.Data[k].scanAngle,360.0)) > 357 )){ //+90
+               if(angleDiff < 3 || angleDiff > 357){
+                   if(newTarget.dist*1000 > copyOfLaserData.Data[k].scanDistance){
+                       lD4R.minDist = copyOfLaserData.Data[k].scanDistance;
+                       lD4R.minAngle = copyOfLaserData.Data[k].scanAngle;
+                   }
+               }
+           }
+
+            ///max dist Left
+           if(angleDiff < 3 || angleDiff > 357){
+               if ((copyOfLaserData.Data[k].scanDistance > lD4R.maxDistL && copyOfLaserData.Data[k].scanDistance < 2000.0 ) && ((fmod(copyOfLaserData.Data[k].scanAngle,360.0)) <= 360) && ((fmod(copyOfLaserData.Data[k].scanAngle,360.0)) >= 340)){
+                     lD4R.maxDistL = copyOfLaserData.Data[k].scanDistance;
+                     lD4R.maxAngleL = copyOfLaserData.Data[k].scanAngle;
+
                 }
+           }
+
+           ///max dist Right
+           if(angleDiff < 3 || angleDiff > 357){
+               if ((copyOfLaserData.Data[k].scanDistance > lD4R.maxDistR && copyOfLaserData.Data[k].scanDistance < 2000.0 ) && ((fmod(copyOfLaserData.Data[k].scanAngle,360.0)) <= 20) && ((fmod(copyOfLaserData.Data[k].scanAngle,360.0)) >= 0)){
+                    lD4R.maxDistR = copyOfLaserData.Data[k].scanDistance;
+                    lD4R.maxAngleR = copyOfLaserData.Data[k].scanAngle;
+                }
+           }
+
+
+            /*  int dist=rand()%500;
+        int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-k)*3.14159/180.0))+rect.topLeft().x();
+        int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-k)*3.14159/180.0))+rect.topLeft().y();*/
+            int dist=copyOfLaserData.Data[k].scanDistance/20;
+            int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().x();
+            int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().y();
+            if(rect.contains(xp,yp))
+                painter.drawEllipse(QPoint(xp, yp),2,2);
+
+            //updatni nasu mapu s datami z ladaru
+
+            if(!isRotate && mappingCounter == 0){
+                updateMap(copyOfLaserData.Data[k].scanDistance, 360-copyOfLaserData.Data[k].scanAngle);
             }
         }
+
+        //--------------------------------------------------------------------------------------
+
+        /// vypocet svetovych suradnic bodu minDist
+        if(!isinf(lD4R.minDist) && !isinf(lD4R.minAngle)){
+            lD4R.forminAngle = fmod((lD4R.minAngle*M_PI/180) + fiAbsolute,(2.0*M_PI));  // uhol zvierany s x,y suradnicou robota vo svete
+            lD4R.minX = x + ((lD4R.minDist/1000.0)*cos(lD4R.forminAngle));
+            lD4R.minY = y + ((lD4R.minDist/1000.0)*sin(lD4R.forminAngle));
+            lD4R.minPoint = TRUE;
+            qDebug() << "X: " + QString::number(x) + " Y: " + QString::number(y);
+            qDebug() << "Xmin: " + QString::number(lD4R.minX) + " Ymin: " + QString::number(lD4R.minY);
+        }else lD4R.minPoint = FALSE;
+
+        /// vypocet svetovych suradnic bodu maxL (kraj steny lavy)
+        if(!isinf(lD4R.maxDistL) && !isinf(lD4R.maxAngleL)){
+            lD4R.formAngleL = fmod(lD4R.maxAngleL /180.0*M_PI + fiAbsolute,(2.0*M_PI));  // uhol zvierany s x,y suradnicou robota vo svete
+            lD4R.maxXL = x + ((lD4R.maxDistL/1000.0)*cos(lD4R.formAngleL));
+            lD4R.maxYL = y + ((lD4R.maxDistL/1000.0)*sin(lD4R.formAngleL));
+            lD4R.maxPointL = TRUE;
+        }else lD4R.maxPointL = FALSE;
+
+        /// vypocet svetovych suradnic bodu maxR (kraj steny pravy)
+        if(!isinf(lD4R.maxAngleR) && !isinf(lD4R.maxDistR)){
+            lD4R.formAngleR = fmod(lD4R.maxAngleR/180.0*M_PI + fiAbsolute,(2.0*M_PI));  // uhol zvierany s x,y suradnicou robota vo svete
+            lD4R.maxXR = x + ((lD4R.maxDistR/1000.0)*cos(lD4R.formAngleR));
+            lD4R.maxYR = y + ((lD4R.maxDistR/1000.0)*sin(lD4R.formAngleR));
+            lD4R.maxPointR = TRUE;
+        }else lD4R.maxPointR = FALSE;
+
+
+        //-------------------------------------------------------------------------------------------
+
+        /// vykreslenie bodu mindist
+        int dist=lD4R.minDist/20;
+        int xp=rect.width()-(rect.width()/2+dist*2*sin((360 - lD4R.minAngle)*3.14159/180.0))+rect.topLeft().x();
+        int yp=rect.height()-(rect.height()/2+dist*2*cos((360 - lD4R.minAngle)*3.14159/180.0))+rect.topLeft().y();
+        if(rect.contains(xp,yp)){
+            painter.setPen(yellowPen);
+            painter.drawEllipse(QPoint(xp, yp),4,4);
+        }
+
+        /// vykreslenie bodu maxdistL
+        int maxdistl=lD4R.maxDistL/20;
+        int maxpl=rect.width()-(rect.width()/
+                         2+maxdistl*2*sin((360 - lD4R.maxAngleL)*3.14159/180.0))+rect.topLeft().x();
+        int maypl=rect.height()-(rect.height()/2+maxdistl*2*cos((360 - lD4R.maxAngleL)*3.14159/180.0))+rect.topLeft().y();
+        if(rect.contains(maxpl,maypl)){
+            painter.setPen(redPen);
+            painter.drawEllipse(QPoint(maxpl, maypl),4,4);//vykreslime kruh s polomerom 2px
+        }
+        /// vykreslenie bodu maxdistR
+        int maxdistr=lD4R.maxDistR/20;
+        int maxpr=rect.width()-(rect.width()/
+                         2+maxdistr*2*sin((360 - lD4R.maxAngleR)*3.14159/180.0))+rect.topLeft().x();
+        int maypr=rect.height()-(rect.height()/2+maxdistr*2*cos((360 - lD4R.maxAngleR)*3.14159/180.0))+rect.topLeft().y();
+        if(rect.contains(maxpr,maypr)){
+            painter.setPen(bluePen);
+            painter.drawEllipse(QPoint(maxpr, maypr),4,4);//vykreslime kruh s polomerom 2px
+        }
+        mutex.unlock();
     }
 }
 
@@ -105,7 +231,16 @@ void MainWindow::processThisRobot()
 {
     odometria();
     updateError();
-    mapNavigation();
+
+    if(isMapNavigation){
+        mapNavigation();
+    }
+
+
+    if(isLadarNavigation){
+        ladarNavigation();
+    }
+
 
     if(datacounter%400 == 0 && mapingState){
         writeMapToTxt("map", &mapData);
@@ -406,10 +541,11 @@ worldPoint MainWindow::loadTarget(){
 // START NAVIGATION button
 void MainWindow::on_pushButton_10_clicked()
 {
-    isNavigation = true;
+    isLadarNavigation = true;
     isStart = true;
     finalTarget = loadTarget();
     newTarget = finalTarget;
+    isGoToPoint = true;
     mapingState = true;
     mappingCounter = 1;
 }
@@ -506,7 +642,41 @@ void MainWindow::regulator(){
 
 }
 
-void MainWindow::navigation(){
+void MainWindow::ladarNavigation(){
+
+
+    if(isGoToPoint && isPathBlocked()){
+        isStart = false;
+        isGoToPoint = false;
+        on_pushButton_4_clicked(); //stop
+    }
+
+    if(isWallFollow){
+        newTarget = finalTarget;
+        worldPoint tmpPoint = wallFollowing(); // TODO
+        if(tmpPoint.dist != 123456){
+            newTarget = tmpPoint;
+            isStart = true;
+            isGoToPoint = true;
+            firstPathBlockedCycle = true;
+        }
+    }
+
+    if(!isWallFollow && isPathBlocked() && firstPathBlockedCycle){
+        firstPathBlockedCycle = false;
+        worldPoint tmpPoint = wallDetection(); // TODO
+        if(tmpPoint.dist != 123456) {
+            if(tmpPoint.dist < navigateData.minDist2Fintarget){
+                navigateData.minDist2Fintarget = tmpPoint.dist;
+            }
+            newTarget = tmpPoint;
+            isStart = true;
+            isGoToPoint = true;
+            firstPathBlockedCycle = true;
+        }else{
+            isWallFollow = true;
+        }
+    }
 
 }
 
@@ -571,18 +741,17 @@ void MainWindow::on_pushButton_12_clicked()
 
 void MainWindow::mapNavigation(){
 
-    if(isMapNavigation){
-        //qDebug() << "isStart: " + QString::number(isStart) + "   Path size left: " + QString::number(path.size());
-        if(!path.empty() && !isStart){
-            //qDebug() << "Size left: " + QString::number(path.size()) + "  x: " + QString::number(path.front().x) + "  y: " + QString::number(path.front().y);
-            newTarget.x = path.front().x;
-            newTarget.y = path.front().y;
-            path.pop();
-            isStart = true;
-        }
-        if(path.empty()){
-            isMapNavigation = false;
-        }
+
+    //qDebug() << "isStart: " + QString::number(isStart) + "   Path size left: " + QString::number(path.size());
+    if(!path.empty() && !isStart){
+        //qDebug() << "Size left: " + QString::number(path.size()) + "  x: " + QString::number(path.front().x) + "  y: " + QString::number(path.front().y);
+        newTarget.x = path.front().x;
+        newTarget.y = path.front().y;
+        path.pop();
+        isStart = true;
+    }
+    if(path.empty()){
+        isMapNavigation = false;
     }
 }
 
@@ -802,4 +971,14 @@ queue<worldPoint> MainWindow::map2worldPath(list<MapPoint> mappath){
             count++;
     }
     return wrldpath;
+}
+
+bool MainWindow::isPathBlocked(){
+    if(lD4R.minPoint) return TRUE;
+    else return FALSE;
+}
+
+double MainWindow::fixAngle(double angle){
+    if (angle < 0) angle = 360 + angle;
+    return angle;
 }
