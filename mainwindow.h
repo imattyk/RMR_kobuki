@@ -163,7 +163,7 @@ public:
     double getDistance(double x1, double y1, double x2, double y2);
     void updateError();
     void regulator();
-    void ladarNavigation();
+    void lidarNavigation();
     void rotateRobotLeft();
     void rotateRobotRight();
     void createMap(MapType *map);
@@ -182,9 +182,12 @@ public:
     list<MapPoint> pathFinder(MapType *map);
     queue<worldPoint> map2worldPath(list<MapPoint> mappath);
     bool isPathBlocked();
-    double fixAngle(double angle);
-
+    double fixAngle(double fi);
+    worldPoint wallDetection();
+    worldPoint findSecurePointR(double edgePointX, double edgePointY);
+    worldPoint findSecurePointL(double edgePointX, double edgePointY);
     QMutex mutex;
+    void updateLidarNavigation();
 
 
 private slots:
@@ -223,7 +226,7 @@ private:
      double prewEncoderL,prewEncoderR,startEncL,startEncR,distanceL,distanceR,pDistanceL,pDistanceR = 0.0;
      double fi,prewFi,x,y,fiAbsolute = 0.0;
      boolean firstRun = true;
-     boolean isLadarNavigation = false;
+     boolean isLidarNavigation = false;
      boolean isStart = false;
      boolean isRotate = false;
      boolean isMapNavigation = false;
@@ -244,6 +247,7 @@ private:
      MyLidarData lD4R;
      WallFollowData navigateData;
      boolean firstPathBlockedCycle = true;
+     int lidarCountdown = 20;
 
 public slots:
      void setUiValues(double robotX,double robotY,double robotFi, int counter);
