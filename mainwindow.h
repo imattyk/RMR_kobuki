@@ -28,48 +28,29 @@
 typedef struct {
     //najblizsi bod
     double minDcrit;
-    double minDist;
+    double minLidarDist;
     double minAngle;
     double forminAngle;
     double minX;
     double minY;
-    //lavy kraj
-    double DcritL;
-    double DistL;
-    double AngleL;
-    double formAngleL;
-    double XL;
-    double YL;
-    //pravy kraj
-    double DcritR;
-    double DistR;
-    double AngleR;
-    double formAngleR;
-    double XR;
-    double YR;
 
-    double maxDistL;
-    double maxAngleL;
+
+    double maxLidarDistL;
+    double maxLidarAngleL;
     double maxXL;
     double maxYL;
+    double formAngleL;
 
-    double maxDistR;
-    double maxAngleR;
+    double maxLidarDistR;
+    double maxLidarAngleR;
     double maxXR;
     double maxYR;
+    double formAngleR;
 
     bool minPoint;
-    bool minPointL;
-    bool minPointR;
     bool maxPointL;
     bool maxPointR;
 
-    double minDistT;
-    double minAngleT;
-    double forminAngleT;
-    double minXT;
-    double minYT;
-    double minPointT;
 }MyLidarData;
 
 typedef struct {
@@ -244,7 +225,7 @@ private:
      RobotSizeData robotSizeData;
      MapType *navigationMapPtr = new MapType();
      QString mapName = "";
-     MyLidarData lD4R;
+     MyLidarData lidarData;
      WallFollowData navigateData;
      boolean firstPathBlockedCycle = true;
      int lidarCountdown = 20;
